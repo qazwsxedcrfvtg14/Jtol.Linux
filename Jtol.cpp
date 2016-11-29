@@ -108,7 +108,99 @@ namespace Jtol{
     void NetSend(Net sock,string s){
         send(sock,s.c_str(),s.length(),0);
         }
-
+    vector<string> HostIP;
+    void SetHostIP(){
+        HostIP.clear();
+        char host_name[256];
+        if (gethostname(host_name, sizeof(host_name)) == -1) {
+            printf("gethostname failed: %s(errno: %d)",strerror(errno),errno);
+            exit(-1);
+            }
+        struct hostent *phe = gethostbyname(host_name);
+        if(phe==0){
+            printf("Bad host lookup.");
+            }
+        for(int i=0;phe->h_addr_list[i]!=0;i++){
+            struct in_addr addr;
+            memcpy(&addr, phe->h_addr_list[i], sizeof(struct in_addr));
+            HostIP.push_back(inet_ntoa(addr));
+            }
+        HostIP.push_back("127.0.0.1");
+        }/*
+    void SNetCreatFnc(SNetCreatFncStruct *SNCF){
+        vector<sockaddr_in> client_address;
+        client_address.push_back(sockaddr_in());
+        Net client_tmp;
+        int client_len=sizeof(client_address.back());
+        int sz=(SNCF->server_sockfd)->size();
+        while(1){
+            for(int i=0;i<sz;i++){
+                client_tmp=accept((SNCF->server_sockfd)->at(i),(struct sockaddr *)&client_address.back(), &client_len);
+                if((int)client_tmp != SOCKET_ERROR){
+                    printf("[%s] Connect!\n",inet_ntoa(client_address.back().sin_addr));
+                    //CreateThread(NULL,0,(LPTHREAD_START_ROUTINE)Fnc,(void*)(SNCF->client_sockfd_list)->back(),0,NULL);
+                    client_address.push_back(sockaddr_in());
+                    (SNCF->client_sockfd_list)->insert(client_tmp);
+                    }
+                Sleep(50);
+                }
+			}
+        }*/
+    /*
+    mutex_set<Net>& SNetCreat(int port,int mode){
+        vector<Net> *server_sockfd;
+        server_sockfd=new vector<Net>;
+        sockaddr_in server_address[100];
+        int server_len[100];
+        //Winsock DLL
+        WSADATA wsadata;
+        if(WSAStartup(0x101,(LPWSADATA)&wsadata) != 0) {
+            printf("Winsock Error\n");
+            return NULL;
+            }
+        SetHostIP();
+        for(auto x:HostIP)
+            puts(x.c_str());
+        int Err=0,sz=HostIP.size();
+        for(int i=0;i<sz;i++){
+            int err=0;
+            server_sockfd->push_back(socket(AF_INET, SOCK_STREAM, 0));
+            if((int)server_sockfd->at(i) == SOCKET_ERROR) {
+                printf("Socket %d Error\n",i);
+                err=1;
+                }
+            server_address[i].sin_family = AF_INET;
+            server_address[i].sin_addr.s_addr = inet_addr(&HostIP[i][0]);
+            server_address[i].sin_port = htons(port);
+            server_len[i] = sizeof(server_address);
+            if(bind(server_sockfd->at(i), (struct sockaddr *)&server_address[i], server_len[i]) < 0) {
+                printf("Bind %d Error\n",i);
+                err=1;
+                }
+            if(listen(server_sockfd->at(i), 5) < 0) {
+                printf("Listen %d Error\n",i);
+                err=1;
+                }
+            if(err){
+                Err++;
+                }
+            else{
+                ioctlsocket(server_sockfd->at(i),FIONBIO, (u_long FAR*) &mode);
+                }
+            }
+        if(Err==sz){
+            printf("Error %d\n",sz);
+            return NULL;
+            }
+        set<Net> *client_sockfd_list;
+        client_sockfd_list = new set<Net>;
+        SNetCreatFncStruct *SNCF;
+        SNCF=new SNetCreatFncStruct;
+        SNCF->client_sockfd_list=client_sockfd_list;
+        SNCF->server_sockfd=server_sockfd;
+        CreateThread(NULL,0,(LPTHREAD_START_ROUTINE)SNetCreatFnc,(void*)SNCF,0,NULL);
+        return client_sockfd_list;
+        }*/
 
     string FileToStr(const char *fil){
         fstream fin;

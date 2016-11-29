@@ -70,22 +70,6 @@ namespace Jtol{
         };
     unsigned long long int GetTime();
     void Delay(Time x,Time feq=1);
-    Pos GetPos();
-    Color GetCol(int x,int y);
-    Color GetCol(Pos p);
-    void Click(int t=50);
-    void Press(int r=0);
-    void Release(int r=0);
-    void Mov(int x,int y);
-    void Move(int x,int y,int t=0);
-    void MoveEX(int x,int y,int t=0);
-    void Clear();
-    bool ChkKey(int key);
-    bool Key(int key);
-    void WaitKey(int key);
-    void PressKey(int key);
-    void ReleaseKey(int key);
-    void ClickKey(int key,int t=50);
     Net NetCreat(const char ip[],int port=23,int mode=1);//mode: 1->NoWait 0->Wait
     extern map<Net,string > NetBuf;
     extern rwlock NetBuf_lock;
@@ -93,6 +77,94 @@ namespace Jtol{
     string NetGet(Net sock);
     string NetGet(Net sock,int &result);
     void NetSend(Net sock,string s);
+    template<typename T>
+    class mutex_set{
+        private:
+            mutex mut;
+            set<T> st;
+        public:
+            friend class iter;
+            class iter{
+                private:
+                    typename set<T>::iterator it;
+                    mutex *mu;
+                public:
+                    iter(){}
+                    iter(const typename set<T>::iterator &_it,mutex * _mu){it=_it;mu=_mu;}
+                    const T& operator*(){
+                        mu->lock();
+                        const T &ret=*it;
+                        mu->unlock();
+                        return ret;
+                        }
+                    const T* operator->(){
+                        mu->lock();
+                        const T &ret=*it;
+                        mu->unlock();
+                        return &ret;
+                        }
+                    iter& operator++(){
+                        mu->lock();
+                        ++it;
+                        mu->unlock();
+                        return *this;
+                        }
+                    bool operator==(iter &b){
+                        mu->lock();
+                        bool ret=(it==b.it);
+                        mu->unlock();
+                        return ret;
+                        }
+                    bool operator!=(iter &b){
+                        mu->lock();
+                        bool ret=(it!=b.it);
+                        mu->unlock();
+                        return ret;
+                        }
+                };
+            iter begin(){
+                mut.lock();
+                iter it(st.begin(),&mut);
+                mut.unlock();
+                return it;
+                }
+            iter end(){
+                mut.lock();
+                iter it(st.end(),&mut);
+                mut.unlock();
+                return it;
+                }
+            auto size(){
+                mut.lock();
+                auto ret=st.size();
+                mut.unlock();
+                return ret;
+                }
+            auto empty(){
+                mut.lock();
+                auto ret=st.empty();
+                mut.unlock();
+                return ret;
+                }
+            auto insert(const T &val){
+                mut.lock();
+                auto res=st.insert(val);
+                pair<iter,bool> ret(iter(res.f,&mut),res.s);
+                mut.unlock();
+                return ret;
+                }
+            auto erase(const T &val){
+                mut.lock();
+                auto ret=st.erase(val);
+                mut.unlock();
+                return ret;
+                }
+            void clear(){
+                mut.lock();
+                st.clear();
+                mut.unlock();
+                }
+        };
     extern vector<string> HostIP;
     void SetHostIP();
     string FileToStr(const char *fil);
