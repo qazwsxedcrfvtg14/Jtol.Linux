@@ -1,5 +1,4 @@
-請記得在連結器內加入 "-lwsock32","-lgdi32","-luser32","-lkernel32","-lcomctl32"
-如果要執行檔可以跨電腦執行請再加入 "-static"
+﻿請記得在連結器內加入 "-lpthread"
 然後使用了Jtol的namespace
 結構:
     Time 存時間
