@@ -1,4 +1,4 @@
-//Jtol.Linux.h v1.7.3.3
+//Jtol.Linux.h v1.7.3.4
 #ifndef JTOL_H_
 #define JTOL_H_
 #include<sys/types.h>
@@ -167,6 +167,8 @@ namespace Jtol{
         };
     extern vector<string> HostIP;
     void SetHostIP();
+    void SNetCreatFnc(vector<Net> server_sockfd,shared_ptr<mutex_set<Net>> client_sockfd_list);
+    shared_ptr<mutex_set<Net>> SNetCreat(int port=23,int mode=1);
     string FileToStr(const char *fil);
     void StrToFile(string s,const char fil[]);
     string UTCTime();
@@ -276,7 +278,7 @@ namespace Jtol{
     void nc_close(Net net);
     bool nc_is_closed(Net net);
     extern map<Net,mutex>nc_mutex;
-    stream &nc(Net net);
+    stream &nc(Net net,int output=1);
     template <typename T, int N>
     string chars(T (&ca)[N]){
         return string(ca,N-1);

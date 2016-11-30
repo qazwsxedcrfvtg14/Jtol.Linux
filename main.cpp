@@ -4,9 +4,50 @@
 using namespace Jtol;
 using namespace std;
 int main(int argc,char** argv){
-    mutex_set<int>st;
+
+    HostIP.push_back("10.5.5.103");
+    HostIP.push_back("192.168.38.1");
+    HostIP.push_back("127.0.1.1");
+    HostIP.push_back("127.0.0.1");
+    auto snet=SNetCreat(8787);
+    if(snet==nullptr)return 0;
+    auto &snet_c=*snet;
+    puts("SNet Started!");
+    string fil=FileToStr("a.html");
+    int len=fil.length();
+    while(1){
+        vector<Net> need_erase;
+        for(auto sock:snet_c){
+            //NetClose(sock);
+            //need_erase.push_back(sock);
+            //continue;
+            string s=NetGet(sock);
+            if(s.length()){
+                //printf("%s",buf);
+                string str;
+                str+="HTTP/1.1 200 OK\n";
+                str+="Content-Length: "+IntToStr(len)+"\n";
+                str+="Content-Type: text/html\n";
+                str+="Server: Jtol/1.7.3.4 (Win) (Windows10/WindowsNT)\n";
+                str+="Last-Modified: "+UTCTime()+"\n";
+                str+="Accept-Ranges: bytes\n";
+                str+="Date: "+UTCTime()+"\n";
+                str+="\n";
+                str+=fil;
+                //cout<<str;
+                NetSend(sock,&str[0]);
+                NetClose(sock);
+                need_erase.push_back(sock);
+                }
+            }
+        for(auto sock:need_erase)
+            snet_c.erase(sock);
+        //if(Key('E'))break;
+        Sleep(15);
+        }
     //for(Net n:st){}
     //auto i=st.begin();
+    mutex_set<int>st;
     st.insert(87);
     st.insert(98);
     for(int x:st){
