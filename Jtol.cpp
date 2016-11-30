@@ -1,4 +1,4 @@
-//Jtol.Linux.cpp v1.7.3.4
+//Jtol.Linux.cpp v1.7.3.5
 #include<bits/stdc++.h>
 #include<ext/rope>
 #include <sys/types.h>
@@ -126,7 +126,7 @@ namespace Jtol{
             }
         HostIP.push_back("127.0.0.1");
         }
-    void SNetCreatFnc(vector<Net> server_sockfd,shared_ptr<mutex_set<Net>> client_sockfd_list){
+    void SNetCreatFnc(vector<Net> server_sockfd,shared_ptr<mutex_set<Net>> client_sockfd_list,int mode){
         vector<sockaddr_in> client_address;
         client_address.push_back(sockaddr_in());
         Net client_tmp;
@@ -139,6 +139,10 @@ namespace Jtol{
                     printf("[%s] Connect!\n",inet_ntoa(client_address.back().sin_addr));
                     //CreateThread(NULL,0,(LPTHREAD_START_ROUTINE)Fnc,(void*)(SNCF->client_sockfd_list)->back(),0,NULL);
                     client_address.push_back(sockaddr_in());
+                    if(mode){
+                        int flags = fcntl(client_tmp, F_GETFL, 0);
+                        fcntl(client_tmp, F_SETFL, flags|O_NONBLOCK);
+                        }
                     client_sockfd_list->insert(client_tmp);
                     }
                 Sleep(15);
@@ -181,7 +185,7 @@ namespace Jtol{
             if(err){
                 Err++;
                 }
-            else{
+            else if(mode){
                 int flags = fcntl(server_sockfd.at(i), F_GETFL, 0);
                 fcntl(server_sockfd.at(i), F_SETFL, flags|O_NONBLOCK);
                 //ioctlsocket(server_sockfd->at(i),FIONBIO, (u_long FAR*) &mode);
@@ -193,7 +197,7 @@ namespace Jtol{
             client_sockfd_list->insert(-1);
             return nullptr;
             }
-        ThreadCreate(SNetCreatFnc,server_sockfd,client_sockfd_list);
+        ThreadCreate(SNetCreatFnc,server_sockfd,client_sockfd_list,mode);
         return client_sockfd_list;
         }
 
@@ -1525,6 +1529,7 @@ namespace Jtol{
             bool brk=nc_map.find(net)==nc_map.end();
             auto &str=nc_stream[net];
             nc_lock.unlock();
+            //printf("^%d\n",brk);
             if(brk)break;
             int result;
             string s=NetGet(net,result);
@@ -1533,7 +1538,7 @@ namespace Jtol{
             str<<s;
             if(output==1)
                 printf("%s",s.c_str());
-            Sleep(1);
+            Sleep(15);
             }
         nc_lock.write_lock();
         if(nc_map.find(net)!=nc_map.end())nc_map.erase(net);

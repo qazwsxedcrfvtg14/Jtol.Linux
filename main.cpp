@@ -4,7 +4,6 @@
 using namespace Jtol;
 using namespace std;
 int main(int argc,char** argv){
-
     HostIP.push_back("10.5.5.103");
     HostIP.push_back("192.168.38.1");
     HostIP.push_back("127.0.1.1");
@@ -18,10 +17,12 @@ int main(int argc,char** argv){
     while(1){
         vector<Net> need_erase;
         for(auto sock:snet_c){
+            auto &str=nc(sock,0);
             //NetClose(sock);
             //need_erase.push_back(sock);
             //continue;
-            string s=NetGet(sock);
+            string s;//=NetGet(sock);
+            str>>s;
             if(s.length()){
                 //printf("%s",buf);
                 string str;
@@ -36,12 +37,16 @@ int main(int argc,char** argv){
                 str+=fil;
                 //cout<<str;
                 NetSend(sock,&str[0]);
-                NetClose(sock);
+                need_erase.push_back(sock);
+                }
+            else if(nc_is_closed(sock)){
                 need_erase.push_back(sock);
                 }
             }
-        for(auto sock:need_erase)
+        for(auto sock:need_erase){
             snet_c.erase(sock);
+            nc_close(sock);
+            }
         //if(Key('E'))break;
         Sleep(15);
         }

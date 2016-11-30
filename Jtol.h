@@ -1,4 +1,4 @@
-//Jtol.Linux.h v1.7.3.4
+//Jtol.Linux.h v1.7.3.5
 #ifndef JTOL_H_
 #define JTOL_H_
 #include<sys/types.h>
@@ -167,7 +167,6 @@ namespace Jtol{
         };
     extern vector<string> HostIP;
     void SetHostIP();
-    void SNetCreatFnc(vector<Net> server_sockfd,shared_ptr<mutex_set<Net>> client_sockfd_list);
     shared_ptr<mutex_set<Net>> SNetCreat(int port=23,int mode=1);
     string FileToStr(const char *fil);
     void StrToFile(string s,const char fil[]);
