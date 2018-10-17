@@ -1,4 +1,4 @@
-//Jtol.Linux.cpp v1.7.3.5
+//Jtol.Linux.cpp v1.9.0
 #include<bits/stdc++.h>
 #include<ext/rope>
 #include <sys/types.h>
@@ -18,7 +18,6 @@
 #define UNICODE
 #define f first
 #define s second
-//#pragma comment(linker, "/subsystem:console /entry:WinMainCRTStartup")
 namespace Jtol{
     using namespace __gnu_cxx;
     using namespace std;
@@ -153,12 +152,6 @@ namespace Jtol{
         vector<Net> server_sockfd;
         sockaddr_in server_address[100];
         int server_len[100];
-        //Winsock DLL
-        /*WSADATA wsadata;
-        if(WSAStartup(0x101,(LPWSADATA)&wsadata) != 0) {
-            printf("Winsock Error\n");
-            return NULL;
-            }*/
         if(HostIP.size()==0)SetHostIP();
         for(auto x:HostIP)
             puts(x.c_str());
@@ -509,6 +502,20 @@ namespace Jtol{
     void Setup(){
         srand(time(0));
         //memset(NetBuf,0,sizeof(NetBuf));
+        }
+    unordered_map<int,__gnu_cxx::stdio_filebuf<char>>filebuf;
+    SO LoadSO(const string &path){
+        SO handle;
+        handle = dlopen (path.c_str(), RTLD_LAZY);
+        if (!handle) {
+            fprintf (stderr, "%s\n", dlerror());
+            return 0;
+        }
+        dlerror();
+        return handle;
+    }
+    void FreeSO(SO handle){
+        dlclose(handle);
         }
     int bmp_read(const char *filein_name,int *xsize,int *ysize,int *bsize,unsigned char **rarray,unsigned char **garray,unsigned char **barray);
     int bmp_read_data(FILE *filein,int xsize,int ysize,int bsize,unsigned char *rarray,unsigned char *garray,unsigned char *barray);
@@ -1476,10 +1483,14 @@ namespace Jtol{
         PraseJson(now,0,res);
         return res;
         }
-    vector<string>split(string s,string cut){
+    vector<string>split(string s,string cut,int num){
         vector<string>ve;
         auto clen=cut.length();
         while(true){
+            if(num==1){
+                ve.push_back(s);
+                break;
+                }
             auto pos=s.find(cut);
             if(pos==string::npos){
                 ve.push_back(s);
@@ -1495,9 +1506,18 @@ namespace Jtol{
                 else
                     s="";
                 }
+            num--;
             }
         return ve;
         }
+    string join(vector<string>ve,string s){
+        size_t sz=ve.size();
+        if(sz==0)return "";
+        string result=ve[0];
+        for(size_t i=1;i<sz;i++)
+            result+=s+ve[i];
+        return result;
+    }
     mutex exec_mut;
     string exec(string cmd){
         exec_mut.lock();
@@ -1508,8 +1528,9 @@ namespace Jtol{
         if (!pipe) throw std::runtime_error("popen() failed!");
         try {
             while (!feof(pipe)) {
-                if (fgets(buffer, 1000, pipe) != NULL)
-                    result += buffer;
+                size_t len=fread(buffer,sizeof(char),1000,pipe);
+                if (len > 0)
+                    result += string(buffer,len);
                 }
             }
         catch(...){
@@ -1535,7 +1556,7 @@ namespace Jtol{
             string s=NetGet(net,result);
             if(result<0)break;
             str.clear();
-            str<<s;
+            str.append(s);
             if(output==1)
                 printf("%s",s.c_str());
             Sleep(15);
@@ -1545,13 +1566,14 @@ namespace Jtol{
         nc_lock.unlock();
         NetClose(net);
         }
-    Net nc(const string& ip,int port,int output){
-        Net net=NetCreat(ip.c_str(),port,1);
+    stream &nc(const string& ip,int port,int output){
+        Net net=NetCreat(ip.c_str(),port,0);
         nc_lock.write_lock();
+        nc_stream[net].net=net;
         nc_map[net]=ThreadCreate(nc_background,net,output);
-        nc_stream[net];
+        auto &st=nc_stream[net];
         nc_lock.unlock();
-        return net;
+        return st;
         }
     void nc_close(Net net){
         Thread th=0;
@@ -1636,5 +1658,25 @@ namespace Jtol{
                 ret+=s[i];
             }
         return ret;
+        }
+    static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp){
+        ((std::string*)userp)->append((char*)contents, size * nmemb);
+        return size * nmemb;
+    }
+    string request(string url){
+        CURL *curl;
+        CURLcode res;
+        string s;
+        curl = curl_easy_init();
+        if(curl) {
+            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&s);
+            res = curl_easy_perform(curl);
+            curl_easy_cleanup(curl);
+            }
+        if(res)return s;
+        return s;
         }
     }

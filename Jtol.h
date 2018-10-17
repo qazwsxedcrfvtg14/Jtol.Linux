@@ -1,13 +1,22 @@
-//Jtol.Linux.h v1.7.3.5
+//Jtol.Linux.h v1.9.0
 #ifndef JTOL_H_
 #define JTOL_H_
 #include<sys/types.h>
-#include <sys/socket.h>
+#include<sys/socket.h>
 #include<netinet/in.h>
 #include<bits/stdc++.h>
 #include<ext/rope>
 #include"md5.h"
 #include"lodepng.h"
+#include<curl/curl.h>
+#include<dlfcn.h>
+#include<stdlib.h>
+#include<sys/types.h>
+#include<sys/wait.h>
+#include<sys/stat.h>
+#include<unistd.h>
+#include <ext/stdio_filebuf.h>
+
 #undef UNICODE
 #define UNICODE
 #define f first
@@ -22,6 +31,7 @@ namespace Jtol{
     typedef par Pos;
     typedef int Net;
     typedef thread* Thread;
+    typedef void* SO;
     typedef basic_string<unsigned char> ustring;
     void Sleep(int t);
     struct Color{
@@ -178,8 +188,7 @@ namespace Jtol{
         stringstream str;
         string s;
         str<<x;
-        str>>s;
-        return s;
+        return str.str();
         }
     struct Node{
         string name;
@@ -201,10 +210,66 @@ namespace Jtol{
         Thread td=new thread(will_run,args...);
         return td;
         }
+    extern unordered_map<int,__gnu_cxx::stdio_filebuf<char>>filebuf;
+    template<typename... Args>
+    auto exec_pipe(string cmd,Args... args){
+        int fd_1[2],fd_2[2];
+        pipe(fd_1);
+        pipe(fd_2);
+        int in=fd_1[0];
+        int out=fd_2[1];
+        if(fork()){
+            close(fd_1[1]);
+            close(fd_2[0]);
+            }
+        else{
+            close(fd_1[0]);
+            close(fd_2[1]);
+            dup2(fd_1[1],STDOUT_FILENO);
+            dup2(fd_2[0],STDIN_FILENO);
+            close(fd_1[1]);
+            close(fd_2[0]);
+            execl(cmd.c_str(),cmd.c_str(),args...,NULL);
+            fprintf(stderr,"exec filed!\n");
+            }
+        filebuf[in]=__gnu_cxx::stdio_filebuf<char>(in, std::ios::in);
+        filebuf[out]=__gnu_cxx::stdio_filebuf<char>(out, std::ios::out);
+        shared_ptr<istream> is(new istream(&filebuf[in]),[in](istream *p){
+            delete p;
+            filebuf.erase(in);
+            close(in);
+        });
+        shared_ptr<ostream> os(new ostream(&filebuf[out]),[out](ostream *p){
+            delete p;
+            filebuf.erase(out);
+            close(out);
+        });
+        return tuple(is,os);
+        }
     void Wait(Thread thr);
     void HideConsole();
     void Setup();
     void Alert(string content="",string titile="");
+    SO LoadSO(const string &path);
+    void FreeSO(SO handle);
+    template <typename T>
+    struct TypeParser{};
+    template <typename Ret, typename... Args>
+    struct TypeParser<Ret(Args...)> {
+        static std::function<Ret(Args...)> createFunction(void* lpfnGetProcessID) {
+            return std::function<Ret(Args...)>(reinterpret_cast<Ret(*)(Args...)>(lpfnGetProcessID));
+            }
+        };
+    template<typename Signature>
+    function<Signature>GetSOFunc(SO handle,string s){
+        auto func=dlsym(handle,s.c_str());
+        if(!func){
+            fprintf (stderr, "ERROR: unable to find SO function");
+            FreeSO(handle);
+            return 0;
+            }
+        return TypeParser<Signature>::createFunction(func);
+        }
     typedef vector<vector<Color>> Pic;
     Pic ReadBMP(string in);
     int WriteBMP(string out,Pic pic);
@@ -233,13 +298,15 @@ namespace Jtol{
     void PraseJson(const Json_Node& now, int l,wstring &out);
     wstring ReadableJson(const Json_Node&now);
     void TelnetPrint(string s);
-    vector<string>split(string s,string cut);
+    vector<string>split(string s,string cut,int num=0);
+    string join(vector<string>ve,string s);
     string exec(string cmd);
     struct stream{
         private:
-            mutex mut;
-            stringstream stri;
         public:
+        mutex mut;
+        stringstream stri;
+        Net net;
         explicit operator bool(){
             mut.lock();
             bool ret=(bool)stri;
@@ -247,9 +314,15 @@ namespace Jtol{
             return ret;
             }
         template <typename T>
-        stream & operator<<(const T & data){
+        void append(const T & data){
             mut.lock();
             stri<<data;
+            mut.unlock();
+            }
+        template <typename T>
+        stream & operator<<(const T & data){
+            mut.lock();
+            NetSend(net,ToStr(data));
             mut.unlock();
             return *this;
             }
@@ -272,8 +345,15 @@ namespace Jtol{
             mut.unlock();
             return s;
             }
+        string getline(){
+            mut.lock();
+            string s;
+            std::getline(stri,s);
+            mut.unlock();
+            return s;
+            }
         };
-    Net nc(const string& ip,int port=23,int output=1);
+    stream &nc(const string& ip,int port=23,int output=1);
     void nc_close(Net net);
     bool nc_is_closed(Net net);
     extern map<Net,mutex>nc_mutex;
@@ -285,5 +365,6 @@ namespace Jtol{
     bool is_hex(char c);
     int hex(char c);
     string phrase_string(string s);
+    string request(string url);
     }
 #endif

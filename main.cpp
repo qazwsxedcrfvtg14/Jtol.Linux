@@ -3,6 +3,113 @@
 #include"Jtol.h"
 using namespace Jtol;
 using namespace std;
+int mp[105][105];
+int cnt[105][105];
+int bom[105][105];
+char s[1000];
+string ss;
+int n;
+void add9(int x,int y){
+    bom[x][y]=1;
+    for(int i=max(x-1,0);i<=min(x+1,n-1);i++)
+        for(int j=max(y-1,0);j<=min(y+1,n-1);j++)
+            if(i!=x||j!=y)
+                cnt[i][j]++;
+    }
+void sub9(int x,int y){
+    bom[x][y]=0;
+    for(int i=max(x-1,0);i<=min(x+1,n-1);i++)
+        for(int j=max(y-1,0);j<=min(y+1,n-1);j++)
+            if(i!=x||j!=y)
+                cnt[i][j]--;
+    }
+inline bool chk(int x,int y){
+    if(!~mp[x][y]){
+        return bom[x][y]||cnt[x][y]==0;
+        }
+    return mp[x][y]==cnt[x][y];
+    }
+inline bool chk_low(int x,int y){
+    if(!~mp[x][y]){
+        return bom[x][y]||cnt[x][y]==0;
+        }
+    return mp[x][y]>=cnt[x][y];
+    }
+bool F(int x,int y){
+    if(y==n+1)return F(x+1,0);
+    if(x==n+1)return true;
+    if(x==n||y==n){
+        if(x&&y&&!chk(x-1,y-1))return false;
+        return F(x,y+1);
+        }
+    if(!(x&&y&&!chk(x-1,y-1)))
+        if(!(x&&!chk_low(x-1,y)))
+            if(!(y&&!chk_low(x,y-1)))
+                if(F(x,y+1))
+                    return true;
+    if(~mp[x][y])
+        return false;
+    //printf("%d %d\n",x,y);
+    add9(x,y);
+    if(!(x&&y&&!chk(x-1,y-1)))
+        if(!(x&&!chk_low(x-1,y)))
+            if(!(y&&!chk_low(x,y-1)))
+                if(F(x,y+1))return true;
+    sub9(x,y);
+    return false;
+    }
+int main(){
+    auto &input = nc("140.113.209.24",10003,1);
+    for(int k=0;k<9;k++){
+        Sleep(2000*(k+1));
+        fprintf(stderr,"~~%d~~\n",k);
+        input.mut.lock();
+        getline(input.stri,ss);
+        input.mut.unlock();
+        //gets(s);
+        stringstream str(ss);
+        n=0;
+        while(str>>s)n++;
+        for(int i=0;i<n;i++)
+            for(int j=-1;j<n;j++){
+                input>>s;
+                //scanf("%s",s);
+                if(j==-1)continue;
+                if(s[0]=='-')
+                    mp[i][j]=-1;
+                else
+                    mp[i][j]=s[0]-'0';
+                }
+        input.mut.lock();
+        getline(input.stri,ss);
+        input.mut.unlock();
+        memset(cnt,0,sizeof(cnt));
+        memset(bom,0,sizeof(bom));
+        if(!F(0,0))fprintf(stderr,"~~GG~~\n");
+        //add9(1,1);
+        //add9(2,0);
+        /*
+        for(int i=0;i<n;i++,puts(""))
+            for(int j=0;j<n;j++)
+                printf("%d ",cnt[i][j]);
+        for(int i=0;i<n;i++,puts(""))
+            for(int j=0;j<n;j++)
+                printf("%d ",chk(i,j));
+        */
+        for(int i=0;i<n;i++,puts(""),NetSend(net,"\n"))
+            for(int j=0;j<n;j++)
+                if(bom[i][j])
+                    printf("-1 "),NetSend(net,"-1 ");
+                else if(~mp[i][j])
+                    printf("%2d ",mp[i][j]),NetSend(net," "+ToStr(mp[i][j])+" ");
+                else
+                    printf(" 0 "),NetSend(net," 0 ");
+        }
+    while(true)Sleep(100);
+    //while(gets(s))fprintf(stderr,"%s\n",s);
+    return 0;
+    }
+/*
 int main(int argc,char** argv){
     HostIP.push_back("10.5.5.103");
     HostIP.push_back("192.168.38.1");
@@ -70,3 +177,4 @@ int main(int argc,char** argv){
     //++it;
     return 0;
     }
+*/
