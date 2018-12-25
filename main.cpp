@@ -96,14 +96,6 @@ int main(){
             for(int j=0;j<n;j++)
                 printf("%d ",chk(i,j));
         */
-        for(int i=0;i<n;i++,puts(""),NetSend(net,"\n"))
-            for(int j=0;j<n;j++)
-                if(bom[i][j])
-                    printf("-1 "),NetSend(net,"-1 ");
-                else if(~mp[i][j])
-                    printf("%2d ",mp[i][j]),NetSend(net," "+ToStr(mp[i][j])+" ");
-                else
-                    printf(" 0 "),NetSend(net," 0 ");
         }
     while(true)Sleep(100);
     //while(gets(s))fprintf(stderr,"%s\n",s);

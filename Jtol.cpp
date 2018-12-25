@@ -1582,8 +1582,8 @@ namespace Jtol{
         nc_lock.unlock();
         NetClose(net);
     }
-    stream &nc(const string& ip,int port,int output,int non_block_mode,int udp,int udp_bind_port){
-        Net net=NetCreat(ip,port,0,non_block_mode,udp,udp_bind_port);
+    stream &nc(const string& ip,int port,int output,int udp,int udp_bind_port){
+        Net net=NetCreat(ip,port,0,udp,udp_bind_port);
         nc_lock.write_lock();
         nc_stream[net].net=net;
         nc_map[net]=ThreadCreate(nc_background,net,output);

@@ -80,7 +80,7 @@ namespace Jtol{
     };
     unsigned long long int GetTime();
     void Delay(Time x,Time feq=1);
-    Net NetCreat(const string& ip,int port=23,int non_block_mode=0,int udp=0,int udp_bind_port=0);//mode: 1->NoWait 0->Wait
+    Net NetCreat(const string& ip,int port=23,int udp=0,int udp_bind_port=0);//mode: 1->NoWait 0->Wait
     extern map<Net,string > NetBuf;
     extern rwlock NetBuf_lock;
     void NetClose(Net sock);
@@ -357,7 +357,7 @@ namespace Jtol{
             return s;
         }
     };
-    stream &nc(const string& ip,int port=23,int output=1,int non_block_mode=0,int udp=0,int udp_bind_port=0);
+    stream &nc(const string& ip,int port=23,int output=1,int udp=0,int udp_bind_port=0);
     void nc_close(Net net);
     bool nc_is_closed(Net net);
     extern map<Net,mutex>nc_mutex;
