@@ -1,4 +1,4 @@
-//Jtol.Linux.h v1.9.0
+//Jtol.Linux.h v1.9.3
 #ifndef JTOL_H_
 #define JTOL_H_
 #include<sys/types.h>
@@ -40,7 +40,7 @@ namespace Jtol{
         Color(unsigned char r,unsigned char g,unsigned char b){R=r,G=g,B=b,A=255;}
         Color(unsigned char r,unsigned char g,unsigned char b,unsigned char a){R=r,G=g,B=b,A=a;}
         unsigned char L(){return max(R,max(G,B));}
-        };
+    };
     class rwlock {
         private:
             mutex _lock;
@@ -55,7 +55,7 @@ namespace Jtol{
                     _rcon.wait(lock);
                 --_reader;
                 ++_active;
-                }
+            }
             void write_lock() {
                 unique_lock<mutex> lock(_lock);
                 ++_writer;
@@ -63,30 +63,30 @@ namespace Jtol{
                     _wcon.wait(lock);
                 --_writer;
                 _active = -1;
-                }
+            }
             void unlock() {
                 unique_lock<mutex> lock(_lock);
                 if(_active > 0) {
                     --_active;
                     if(_active == 0) _wcon.notify_one();
-                    }
+                }
                 else{
                     _active = 0;
                     if(_writer > 0) _wcon.notify_one();
                     else if(_reader > 0) _rcon.notify_all();
-                    }
                 }
+            }
             rwlock():_writer(0),_reader(0),_active(0){}
-        };
+    };
     unsigned long long int GetTime();
     void Delay(Time x,Time feq=1);
-    Net NetCreat(const char ip[],int port=23,int mode=1);//mode: 1->NoWait 0->Wait
+    Net NetCreat(const string& ip,int port=23,int non_block_mode=0,int udp=0,int udp_bind_port=0);//mode: 1->NoWait 0->Wait
     extern map<Net,string > NetBuf;
     extern rwlock NetBuf_lock;
     void NetClose(Net sock);
     string NetGet(Net sock);
-    string NetGet(Net sock,int &result);
-    void NetSend(Net sock,string s);
+    string NetGet(Net sock,int buffer_size,int &result);
+    void NetSend(Net sock,const string &s);
     template<typename T>
     class mutex_set{
         private:
@@ -106,80 +106,80 @@ namespace Jtol{
                         const T &ret=*it;
                         mu->unlock();
                         return ret;
-                        }
+                    }
                     const T* operator->(){
                         mu->lock();
                         const T &ret=*it;
                         mu->unlock();
                         return &ret;
-                        }
+                    }
                     iter& operator++(){
                         mu->lock();
                         ++it;
                         mu->unlock();
                         return *this;
-                        }
+                    }
                     bool operator==(iter &b){
                         mu->lock();
                         bool ret=(it==b.it);
                         mu->unlock();
                         return ret;
-                        }
+                    }
                     bool operator!=(iter &b){
                         mu->lock();
                         bool ret=(it!=b.it);
                         mu->unlock();
                         return ret;
-                        }
-                };
+                    }
+            };
             iter begin(){
                 mut.lock();
                 iter it(st.begin(),&mut);
                 mut.unlock();
                 return it;
-                }
+            }
             iter end(){
                 mut.lock();
                 iter it(st.end(),&mut);
                 mut.unlock();
                 return it;
-                }
+            }
             auto size(){
                 mut.lock();
                 auto ret=st.size();
                 mut.unlock();
                 return ret;
-                }
+            }
             auto empty(){
                 mut.lock();
                 auto ret=st.empty();
                 mut.unlock();
                 return ret;
-                }
+            }
             auto insert(const T &val){
                 mut.lock();
                 auto res=st.insert(val);
                 pair<iter,bool> ret(iter(res.f,&mut),res.s);
                 mut.unlock();
                 return ret;
-                }
+            }
             auto erase(const T &val){
                 mut.lock();
                 auto ret=st.erase(val);
                 mut.unlock();
                 return ret;
-                }
+            }
             void clear(){
                 mut.lock();
                 st.clear();
                 mut.unlock();
-                }
-        };
+            }
+    };
     extern vector<string> HostIP;
     void SetHostIP();
-    shared_ptr<mutex_set<Net>> SNetCreat(int port=23,int mode=1);
-    string FileToStr(const char *fil);
-    void StrToFile(string s,const char fil[]);
+    shared_ptr<mutex_set<Net>> SNetCreat(int port=23,int non_block_mode=1);
+    string FileToStr(const string &fil);
+    void StrToFile(string s,const string& fil);
     string UTCTime();
     string IntToStr(int x);
     int StrToInt(string x);
@@ -189,7 +189,7 @@ namespace Jtol{
         string s;
         str<<x;
         return str.str();
-        }
+    }
     struct Node{
         string name;
         list<Node*> Klis;
@@ -202,14 +202,14 @@ namespace Jtol{
         void AddType(string s,string ss);
         void AddNode(string s);
         void Print(int l=0);
-        };
+    };
     Node* HtmlToNode(string s);
     Node HttpDecode(string s);
     template<typename T,typename... Args>
-    Thread ThreadCreate(T will_run, Args... args){
-        Thread td=new thread(will_run,args...);
+    Thread ThreadCreate(T will_run, Args&&... args){
+        Thread td=new thread(will_run,forward<Args>(args)...);
         return td;
-        }
+    }
     extern unordered_map<int,__gnu_cxx::stdio_filebuf<char>>filebuf;
     template<typename... Args>
     auto exec_pipe(string cmd,Args... args){
@@ -221,7 +221,7 @@ namespace Jtol{
         if(fork()){
             close(fd_1[1]);
             close(fd_2[0]);
-            }
+        }
         else{
             close(fd_1[0]);
             close(fd_2[1]);
@@ -231,21 +231,21 @@ namespace Jtol{
             close(fd_2[0]);
             execl(cmd.c_str(),cmd.c_str(),args...,NULL);
             fprintf(stderr,"exec filed!\n");
-            }
+        }
         filebuf[in]=__gnu_cxx::stdio_filebuf<char>(in, std::ios::in);
         filebuf[out]=__gnu_cxx::stdio_filebuf<char>(out, std::ios::out);
         shared_ptr<istream> is(new istream(&filebuf[in]),[in](istream *p){
             delete p;
             filebuf.erase(in);
             close(in);
-        });
+    });
         shared_ptr<ostream> os(new ostream(&filebuf[out]),[out](ostream *p){
             delete p;
             filebuf.erase(out);
             close(out);
-        });
+    });
         return tuple(is,os);
-        }
+    }
     void Wait(Thread thr);
     void HideConsole();
     void Setup();
@@ -258,8 +258,8 @@ namespace Jtol{
     struct TypeParser<Ret(Args...)> {
         static std::function<Ret(Args...)> createFunction(void* lpfnGetProcessID) {
             return std::function<Ret(Args...)>(reinterpret_cast<Ret(*)(Args...)>(lpfnGetProcessID));
-            }
-        };
+        }
+    };
     template<typename Signature>
     function<Signature>GetSOFunc(SO handle,string s){
         auto func=dlsym(handle,s.c_str());
@@ -267,9 +267,9 @@ namespace Jtol{
             fprintf (stderr, "ERROR: unable to find SO function");
             FreeSO(handle);
             return 0;
-            }
-        return TypeParser<Signature>::createFunction(func);
         }
+        return TypeParser<Signature>::createFunction(func);
+    }
     typedef vector<vector<Color>> Pic;
     Pic ReadBMP(string in);
     int WriteBMP(string out,Pic pic);
@@ -289,7 +289,7 @@ namespace Jtol{
         wstring data;
         map<wstring, Json_Node>child;
         vector<Json_Node>ary;
-        };
+    };
     std::string trim(std::string s);
     std::wstring trim(std::wstring s);
     wstring erase_quote(wstring s);
@@ -312,20 +312,20 @@ namespace Jtol{
             bool ret=(bool)stri;
             mut.unlock();
             return ret;
-            }
+        }
         template <typename T>
         void append(const T & data){
             mut.lock();
             stri<<data;
             mut.unlock();
-            }
+        }
         template <typename T>
         stream & operator<<(const T & data){
             mut.lock();
             NetSend(net,ToStr(data));
             mut.unlock();
             return *this;
-            }
+        }
         template <typename T>
         stream & operator>>(T & data){
             if(!*this)Sleep(1);
@@ -333,27 +333,31 @@ namespace Jtol{
             stri>>data;
             mut.unlock();
             return *this;
-            }
+        }
         void clear(){
             mut.lock();
             stri.clear();
             mut.unlock();
-            }
+        }
         string str(){
             mut.lock();
             string s=stri.str();
             mut.unlock();
             return s;
-            }
+        }
         string getline(){
             mut.lock();
             string s;
             std::getline(stri,s);
             mut.unlock();
             return s;
-            }
-        };
-    stream &nc(const string& ip,int port=23,int output=1);
+        }
+        string until(string s){
+            
+            return s;
+        }
+    };
+    stream &nc(const string& ip,int port=23,int output=1,int non_block_mode=0,int udp=0,int udp_bind_port=0);
     void nc_close(Net net);
     bool nc_is_closed(Net net);
     extern map<Net,mutex>nc_mutex;
@@ -361,10 +365,10 @@ namespace Jtol{
     template <typename T, int N>
     string chars(T (&ca)[N]){
         return string(ca,N-1);
-        }
+    }
     bool is_hex(char c);
     int hex(char c);
     string phrase_string(string s);
     string request(string url);
-    }
+}
 #endif
