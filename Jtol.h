@@ -184,11 +184,8 @@ namespace Jtol{
     string IntToStr(int x);
     int StrToInt(string x);
     template<typename T>
-    string ToStr(T x){
-        stringstream str;
-        string s;
-        str<<x;
-        return str.str();
+    string ToStr(T&& x){
+        return to_string(x);
     }
     struct Node{
         string name;
