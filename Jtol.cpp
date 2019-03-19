@@ -1,4 +1,4 @@
-//Jtol.Linux.cpp v1.9.3
+//Jtol.Linux.cpp v2.0.0
 #include<bits/stdc++.h>
 #include<ext/rope>
 #include <sys/types.h>
@@ -1536,7 +1536,7 @@ namespace Jtol{
         return result;
     }
     mutex exec_mut;
-    string exec(string cmd){
+    /*string exec_cmd(string cmd){
         exec_mut.lock();
         //cout<<cmd<<endl;
         char buffer[1005];
@@ -1557,6 +1557,45 @@ namespace Jtol{
         pclose(pipe);
         exec_mut.unlock();
         return result;
+    }*/
+    tuple<shared_ptr<istream>,shared_ptr<ostream>> execv_pipe(string cmd,vector<string>ve){
+        int fd_1[2],fd_2[2];
+        pipe(fd_1);
+        pipe(fd_2);
+        int in=fd_1[0];
+        int out=fd_2[1];
+        if(fork()){
+            close(fd_1[1]);
+            close(fd_2[0]);
+        }
+        else{
+            close(fd_1[0]);
+            close(fd_2[1]);
+            dup2(fd_1[1],STDOUT_FILENO);
+            dup2(fd_2[0],STDIN_FILENO);
+            close(fd_1[1]);
+            close(fd_2[0]);
+            vector<char *>args;
+            args.push_back(cmd.data());
+            for(string &s:ve)
+                args.push_back(s.data());
+            args.push_back(NULL);
+            execvp(cmd.c_str(),args.data());
+            fprintf(stderr,"exec filed!\n");
+        }
+        filebuf[in]=__gnu_cxx::stdio_filebuf<char>(in, std::ios::in);
+        filebuf[out]=__gnu_cxx::stdio_filebuf<char>(out, std::ios::out);
+        shared_ptr<istream> is(new istream(&filebuf[in]),[in](istream *p){
+            delete p;
+            filebuf.erase(in);
+            close(in);
+        });
+        shared_ptr<ostream> os(new ostream(&filebuf[out]),[out](ostream *p){
+            delete p;
+            filebuf.erase(out);
+            close(out);
+        });
+        return tuple(is,os);
     }
     map<Net,Thread>nc_map;
     map<Net,stream>nc_stream;
@@ -1694,5 +1733,17 @@ namespace Jtol{
         }
         if(res)return s;
         return s;
+    }
+    string operator "" _str(const char* s, size_t size){
+        return string(s,size);
+    }
+    const char* to_c_str(const string& s){
+        return s.c_str();
+    }
+    const char* to_c_str(const char* s){
+        return s;
+    }
+    string IStreamToStr(istream& is){
+        return string(std::istreambuf_iterator<char>(is), {});
     }
 }

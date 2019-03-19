@@ -1,4 +1,4 @@
-//Jtol.Linux.h v1.9.3
+//Jtol.Linux.h v2.0.0
 #ifndef JTOL_H_
 #define JTOL_H_
 #include<sys/types.h>
@@ -210,6 +210,8 @@ namespace Jtol{
         Thread td=new thread(will_run,forward<Args>(args)...);
         return td;
     }
+    const char* to_c_str(const string& s);
+    const char* to_c_str(const char* s);
     extern unordered_map<int,__gnu_cxx::stdio_filebuf<char>>filebuf;
     template<typename... Args>
     auto exec_pipe(string cmd,Args... args){
@@ -229,7 +231,7 @@ namespace Jtol{
             dup2(fd_2[0],STDIN_FILENO);
             close(fd_1[1]);
             close(fd_2[0]);
-            execl(cmd.c_str(),cmd.c_str(),args...,NULL);
+            execlp(cmd.c_str(),cmd.c_str(),to_c_str(args)...,NULL);
             fprintf(stderr,"exec filed!\n");
         }
         filebuf[in]=__gnu_cxx::stdio_filebuf<char>(in, std::ios::in);
@@ -238,13 +240,27 @@ namespace Jtol{
             delete p;
             filebuf.erase(in);
             close(in);
-    });
+        });
         shared_ptr<ostream> os(new ostream(&filebuf[out]),[out](ostream *p){
             delete p;
             filebuf.erase(out);
             close(out);
-    });
+        });
         return tuple(is,os);
+    }
+    tuple<shared_ptr<istream>,shared_ptr<ostream>> execv_pipe(string cmd,vector<string>ve);
+    string IStreamToStr(istream& is);
+    template<typename... Args>
+    string exec_cmd(Args&&... args){
+        auto [is,os]=exec_pipe(forward<Args>(args)...);
+        os=nullptr;
+        return IStreamToStr(*is);
+    }
+    template<typename... Args>
+    string execv_cmd(Args&&... args){
+        auto [is,os]=execv_pipe(forward<Args>(args)...);
+        os=nullptr;
+        return IStreamToStr(*is);
     }
     void Wait(Thread thr);
     void HideConsole();
@@ -300,7 +316,7 @@ namespace Jtol{
     void TelnetPrint(string s);
     vector<string>split(string s,string cut,int num=0);
     string join(vector<string>ve,string s);
-    string exec(string cmd);
+    //string exec_cmd(string cmd);
     struct stream{
         private:
         public:
@@ -370,5 +386,6 @@ namespace Jtol{
     int hex(char c);
     string phrase_string(string s);
     string request(string url);
+    string operator "" _str(const char* s, size_t size);
 }
 #endif
