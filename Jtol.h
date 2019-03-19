@@ -209,7 +209,6 @@ namespace Jtol{
     }
     const char* to_c_str(const string& s);
     const char* to_c_str(const char* s);
-    extern unordered_map<int,__gnu_cxx::stdio_filebuf<char>>filebuf;
     template<typename... Args>
     auto exec_pipe(string cmd,Args... args){
         int fd_1[2],fd_2[2];
@@ -231,16 +230,16 @@ namespace Jtol{
             execlp(cmd.c_str(),cmd.c_str(),to_c_str(args)...,NULL);
             fprintf(stderr,"exec filed!\n");
         }
-        filebuf[in]=__gnu_cxx::stdio_filebuf<char>(in, std::ios::in);
-        filebuf[out]=__gnu_cxx::stdio_filebuf<char>(out, std::ios::out);
-        shared_ptr<istream> is(new istream(&filebuf[in]),[in](istream *p){
+        auto inp=new __gnu_cxx::stdio_filebuf<char>(in, std::ios::in);
+        auto outp=new __gnu_cxx::stdio_filebuf<char>(out, std::ios::out);
+        shared_ptr<istream> is(new istream(inp),[in,inp](istream *p){
             delete p;
-            filebuf.erase(in);
+            delete inp;
             close(in);
         });
-        shared_ptr<ostream> os(new ostream(&filebuf[out]),[out](ostream *p){
+        shared_ptr<ostream> os(new ostream(outp),[out,outp](ostream *p){
             delete p;
-            filebuf.erase(out);
+            delete outp;
             close(out);
         });
         return tuple(is,os);

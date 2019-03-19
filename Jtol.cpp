@@ -520,7 +520,6 @@ namespace Jtol{
         srand(time(0));
         //memset(NetBuf,0,sizeof(NetBuf));
     }
-    unordered_map<int,__gnu_cxx::stdio_filebuf<char>>filebuf;
     SO LoadSO(const string &path){
         SO handle;
         handle = dlopen (path.c_str(), RTLD_LAZY);
@@ -1583,16 +1582,16 @@ namespace Jtol{
             execvp(cmd.c_str(),args.data());
             fprintf(stderr,"exec filed!\n");
         }
-        filebuf[in]=__gnu_cxx::stdio_filebuf<char>(in, std::ios::in);
-        filebuf[out]=__gnu_cxx::stdio_filebuf<char>(out, std::ios::out);
-        shared_ptr<istream> is(new istream(&filebuf[in]),[in](istream *p){
+        auto inp=new __gnu_cxx::stdio_filebuf<char>(in, std::ios::in);
+        auto outp=new __gnu_cxx::stdio_filebuf<char>(out, std::ios::out);
+        shared_ptr<istream> is(new istream(inp),[in,inp](istream *p){
             delete p;
-            filebuf.erase(in);
+            delete inp;
             close(in);
         });
-        shared_ptr<ostream> os(new ostream(&filebuf[out]),[out](ostream *p){
+        shared_ptr<ostream> os(new ostream(outp),[out,outp](ostream *p){
             delete p;
-            filebuf.erase(out);
+            delete outp;
             close(out);
         });
         return tuple(is,os);
