@@ -1,10 +1,12 @@
-//Jtol.Linux.cpp v2.0.0
+//Jtol.Linux.cpp v2.0.2
 #include<bits/stdc++.h>
 #include<ext/rope>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/time.h>
+#include <sys/epoll.h>
+#include <netdb.h>
 #include <unistd.h>
 #include <sys/timeb.h>
 #include <errno.h>
@@ -123,9 +125,8 @@ namespace Jtol{
     void NetSend(Net sock,const string &s){
         send(sock,s.c_str(),s.length(),0);
     }
-    vector<string> HostIP;
-    void SetHostIP(){
-        HostIP.clear();
+    vector<string> HostIPs(){
+        vector<string> HostIP;
         char host_name[256];
         if (gethostname(host_name, sizeof(host_name)) == -1) {
             printf("gethostname failed: %s(errno: %d)",strerror(errno),errno);
@@ -141,85 +142,88 @@ namespace Jtol{
             HostIP.push_back(inet_ntoa(addr));
         }
         HostIP.push_back("127.0.0.1");
+        return HostIP;
     }
-    void SNetCreatFnc(vector<Net> server_sockfd,shared_ptr<mutex_set<Net>> client_sockfd_list,int non_block_mode){
-        vector<sockaddr_in> client_address;
-        client_address.push_back(sockaddr_in());
-        Net client_tmp;
-        unsigned int client_len=sizeof(client_address.back());
-        int sz=server_sockfd.size();
-        while(1){
-            for(int i=0;i<sz;i++){
-                client_tmp=accept(server_sockfd.at(i),(struct sockaddr *)&client_address.back(), &client_len);
-                if((int)client_tmp != -1){
-                    printf("[%s] Connect!\n",inet_ntoa(client_address.back().sin_addr));
-                    //CreateThread(NULL,0,(LPTHREAD_START_ROUTINE)Fnc,(void*)(SNCF->client_sockfd_list)->back(),0,NULL);
-                    client_address.push_back(sockaddr_in());
-                    if(non_block_mode){
-                        int flags = fcntl(client_tmp, F_GETFL, 0);
-                        fcntl(client_tmp, F_SETFL, flags|O_NONBLOCK);
-                    }
-                    client_sockfd_list->insert(client_tmp);
-                }
-                Sleep(15);
-            }
-        }
-    }
-    shared_ptr<mutex_set<Net>> SNetCreat(int port,int non_block_mode){
+
+    void SNetCreat(vector<string> HostIP,int port,int non_block_mode,function<void(Net)>func){
         vector<Net> server_sockfd;
-        sockaddr_in server_address[100];
-        int server_len[100];
-        if(HostIP.size()==0)SetHostIP();
-        for(auto x:HostIP)
-            puts(x.c_str());
+        if(HostIP.size()==0)
+            HostIP.push_back("");
         int Err=0,sz=HostIP.size();
         for(int i=0;i<sz;i++){
             int err=0;
-            server_sockfd.push_back(socket(AF_INET, SOCK_STREAM, 0));
-            if((int)server_sockfd.at(i) == -1) {
-                printf("Socket %d Error\n",i);
+            struct addrinfo hints;
+            struct addrinfo *servinfo; // 將指向結果
+            auto &ip=HostIP[i];
+            const char* cip=ip.c_str();
+            memset(&hints, 0, sizeof hints);
+            hints.ai_family = AF_UNSPEC;
+            hints.ai_socktype = SOCK_STREAM;
+            if(ip==""){
+                hints.ai_flags = AI_PASSIVE;
+                cip=NULL;
+            }
+            int status;
+            if ((status = getaddrinfo(cip,to_string(port).c_str(), &hints, &servinfo)) != 0) {
+                fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
                 err=1;
             }
-            server_address[i].sin_family = AF_INET;
-            server_address[i].sin_addr.s_addr = inet_addr(HostIP[i].c_str());
-            server_address[i].sin_port = htons(port);
-            server_len[i] = sizeof(server_address);
-            if(bind(server_sockfd.at(i), (struct sockaddr *)&server_address[i], server_len[i]) < 0) {
-                printf("Bind %d Error\n",i);
-                err=1;
+            for(auto p = servinfo; !err && p != NULL; p = p->ai_next) {
+                server_sockfd.push_back(socket(p->ai_family,p->ai_socktype,p->ai_protocol));
+                if((int)server_sockfd.back() == -1) {
+                    fprintf(stderr, "Socket %d Error\n",i);
+                    err=1;
+                }
+                if(bind(server_sockfd.back(),p->ai_addr,p->ai_addrlen) == -1){
+                    fprintf(stderr, "Bind %d Error\n",i);
+                    err=1;
+                }
+                if(listen(server_sockfd.back(), 128) < 0) {
+                    fprintf(stderr, "Listen %d Error\n",i);
+                    err=1;
+                }
             }
-            if(listen(server_sockfd.at(i), 5) < 0) {
-                printf("Listen %d Error\n",i);
-                err=1;
-            }
-            if(err){
-                Err++;
-            }
-            else if(non_block_mode){
-                int flags = fcntl(server_sockfd.at(i), F_GETFL, 0);
-                fcntl(server_sockfd.at(i), F_SETFL, flags|O_NONBLOCK);
-                //ioctlsocket(server_sockfd->at(i),FIONBIO, (u_long FAR*) &mode);
-            }
+            if(servinfo!=NULL)
+                freeaddrinfo(servinfo);
         }
-        shared_ptr<mutex_set<Net>>client_sockfd_list(new mutex_set<Net>);
         if(Err==sz){
-            printf("Error %d\n",sz);
-            client_sockfd_list->insert(-1);
-            return nullptr;
+            fprintf(stderr, "Error %d\n",sz);
+            return ;
         }
-        ThreadCreate(SNetCreatFnc,server_sockfd,client_sockfd_list,non_block_mode);
-        return client_sockfd_list;
+        auto epollfd=epoll_create1(0);
+        constexpr int MAXEVENTS=100;
+        epoll_event event,events[MAXEVENTS];
+        for(auto serverfd:server_sockfd){
+            event.events = EPOLLIN;
+            event.data.fd = serverfd;
+            epoll_ctl(epollfd, EPOLL_CTL_ADD, serverfd, &event);
+        }
+        ThreadPool pool(16);
+        while(true){
+            auto nfds=epoll_wait(epollfd,events,MAXEVENTS,-1);
+            for(int i=0;i<nfds;i++){
+                sockaddr clientaddr;
+                socklen_t addrlen=sizeof(sockaddr);
+                auto conn_sock=accept(events[i].data.fd,&clientaddr, &addrlen);
+                if(conn_sock!=-1){
+                    if(non_block_mode){
+                        int flags = fcntl(conn_sock, F_GETFL, 0);
+                        fcntl(conn_sock, F_SETFL, flags|O_NONBLOCK);
+                    }
+                }
+                pool.commit(func,conn_sock);
+            }
+        }
+        return ;
     }
 
     string FileToStr(const string &fil){
-        fstream fin;
-        fin.open(fil.c_str(),ios::in|ios::binary);
-        char c;
-        string ss;
-        while(fin.get(c))
-            ss+=c;
-        fin.close();
-        return ss;
+        ifstream fin(fil.c_str(),ios::in|std::ios::binary|std::ios::ate);
+        auto fileSize = fin.tellg();
+        fin.seekg(std::ios::beg);
+        std::string result(fileSize,0);
+        fin.read(result.data(),fileSize);
+        return result;
     }
     void StrToFile(string s,const string& fil){
         fstream fout;
@@ -283,7 +287,7 @@ namespace Jtol{
         cout<<"(/"<<name<<")"<<endl;
     }
     Node* HtmlToNode(string s){
-        string sigtag[]={"br","meta","link","img","input","!DOCTYPE","hr"};
+        string sigtag[]={"br","meta","link","img","input","!DOCTYPE","hr","?xml"};
         int sigtagtop=8;
         Node *now=new Node(),*root=now;
         int sz=s.length();
@@ -1499,31 +1503,36 @@ namespace Jtol{
         PraseJson(now,0,res);
         return res;
     }
-    vector<string>split(string s,string cut,int num){
+    vector<string>split(string s,const string &cut,int num){
         vector<string>ve;
         auto clen=cut.length();
+        size_t begin=0;
         while(true){
             if(num==1){
-                ve.push_back(s);
+                ve.push_back(s.substr(begin));
                 break;
             }
-            auto pos=s.find(cut);
+            auto pos=s.find(cut,begin);
             if(pos==string::npos){
-                ve.push_back(s);
+                ve.push_back(s.substr(begin));
                 break;
             }
             else{
-                if(pos)
-                    ve.push_back(s.substr(0,pos));
-                else
-                    ve.push_back("");
-                if(pos+clen!=s.length())
-                    s=s.substr(pos+clen);
-                else
-                    s="";
+                ve.push_back(s.substr(begin,pos-begin));
+                begin=pos+clen;
             }
             num--;
         }
+        return ve;
+    }
+    vector<string>split(const string &s,int num){
+        vector<string>ve;
+        stringstream str(s);
+        ve.push_back("");
+        while(str>>ve.back())
+            ve.push_back("");
+        if(ve.size()>1)
+            ve.pop_back();
         return ve;
     }
     string join(vector<string>ve,string s){
@@ -1613,6 +1622,8 @@ namespace Jtol{
             str.append(s);
             if(output==1)
                 printf("%s",s.c_str());
+            else if(output==2)
+                fprintf(stderr,"%s",s.c_str());
             Sleep(15);
         }
         nc_lock.write_lock();
@@ -1655,6 +1666,7 @@ namespace Jtol{
             return str->s;
         else{
             nc_lock.write_lock();
+            nc_stream[net].net=net;
             nc_map[net]=ThreadCreate(nc_background,net,output);
             auto &st=nc_stream[net];
             nc_lock.unlock();
@@ -1713,28 +1725,11 @@ namespace Jtol{
         }
         return ret;
     }
-    static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp){
-        ((std::string*)userp)->append((char*)contents, size * nmemb);
-        return size * nmemb;
-    }
-    string request(string url){
-        CURL *curl;
-        CURLcode res;
-        string s;
-        curl = curl_easy_init();
-        if(curl) {
-            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-            curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&s);
-            res = curl_easy_perform(curl);
-            curl_easy_cleanup(curl);
-        }
-        if(res)return s;
-        return s;
-    }
     string operator "" _str(const char* s, size_t size){
         return string(s,size);
+    }
+    regex operator "" _reg(const char* s, size_t size){
+        return regex(string(s,size));
     }
     const char* to_c_str(const string& s){
         return s.c_str();

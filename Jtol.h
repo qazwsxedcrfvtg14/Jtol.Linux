@@ -1,6 +1,7 @@
-//Jtol.Linux.h v2.0.0
+//Jtol.Linux.h v2.0.2
 #ifndef JTOL_H_
 #define JTOL_H_
+#include "json.hpp"
 #include<sys/types.h>
 #include<sys/socket.h>
 #include<netinet/in.h>
@@ -8,7 +9,6 @@
 #include<ext/rope>
 #include"md5.h"
 #include"lodepng.h"
-#include<curl/curl.h>
 #include<dlfcn.h>
 #include<stdlib.h>
 #include<sys/types.h>
@@ -16,6 +16,11 @@
 #include<sys/stat.h>
 #include<unistd.h>
 #include <ext/stdio_filebuf.h>
+
+#if __GNUC__ < 8
+#include <experimental/filesystem>
+#endif
+
 
 #undef UNICODE
 #define UNICODE
@@ -26,6 +31,13 @@ namespace Jtol{
     using namespace __gnu_cxx;
     //using namespace Gdiplus;
     using namespace std;
+    #if __GNUC__ >= 8
+    using namespace std::filesystem;
+    #else
+    using namespace std::experimental::filesystem;
+    #endif
+
+    using json = nlohmann::json;
     typedef pair<int,int> par;
     typedef unsigned long long int Time;
     typedef par Pos;
@@ -78,6 +90,76 @@ namespace Jtol{
             }
             rwlock():_writer(0),_reader(0),_active(0){}
     };
+    
+    class ThreadPool{
+        using Task = function<void()>;
+        vector<thread> pool;
+        queue<Task> tasks;
+        mutex m_lock;
+        condition_variable cv_task;
+        atomic<bool> stoped;
+        atomic<int>  idlThrNum;
+        public:
+            ThreadPool(unsigned short size=16):stoped{false}{
+                idlThrNum = size<1?1:size;
+                for(size=0;size<idlThrNum;size++){
+                    pool.emplace_back([this]{
+                        while(!this->stoped){
+                            std::function<void()> task;
+                            {
+                                std::unique_lock<std::mutex> lock{this->m_lock};
+                                this->cv_task.wait(lock,
+                                    [this]{
+                                        return this->stoped||!this->tasks.empty();
+                                    }
+                                );
+                                if(this->stoped&&this->tasks.empty())
+                                    return;
+                                task=std::move(this->tasks.front());
+                                this->tasks.pop();
+                            }
+                            idlThrNum--;
+                            task();
+                            idlThrNum++;
+                        }
+                    }
+                );
+            }
+        }
+        ~ThreadPool(){
+            stoped=true;
+            cv_task.notify_all();
+            for(thread& thread:pool){
+                //thread.detach();
+                if(thread.joinable())
+                    thread.join();
+            }
+        }
+    public:
+        template<class F, class... Args>
+        auto commit(F&& f, Args&&... args) ->std::future<decltype(f(args...))>{
+            if(stoped)
+                throw std::runtime_error("commit on ThreadPool is stopped.");
+            using RetType = decltype(f(args...));
+            auto task = std::make_shared<std::packaged_task<RetType()> >(
+                std::bind(std::forward<F>(f), std::forward<Args>(args)...)
+            );
+            std::future<RetType> future=task->get_future();
+            {
+                std::lock_guard<std::mutex> lock{ m_lock };
+                tasks.emplace(
+                    [task]()
+                    {
+                        (*task)();
+                    }
+                );
+            }
+            cv_task.notify_one();
+            return future;
+        }
+        int idlCount() { return idlThrNum; }
+    };
+
     unsigned long long int GetTime();
     void Delay(Time x,Time feq=1);
     Net NetCreat(const string& ip,int port=23,int udp=0,int udp_bind_port=0);//mode: 1->NoWait 0->Wait
@@ -175,9 +257,8 @@ namespace Jtol{
                 mut.unlock();
             }
     };
-    extern vector<string> HostIP;
-    void SetHostIP();
-    shared_ptr<mutex_set<Net>> SNetCreat(int port=23,int non_block_mode=1);
+    vector<string> SetHostIPs();
+    void SNetCreat(vector<string> HostIP,int port,int non_block_mode,function<void(Net)>func);
     string FileToStr(const string &fil);
     void StrToFile(string s,const string& fil);
     string UTCTime();
@@ -287,9 +368,6 @@ namespace Jtol{
     int WriteBMP(string out,Pic pic);
     Pic ReadPNG(string in);
     void WritePNG(string out,Pic pic);
-    vector<string> Dir(string s);
-    int FileExists(const char * file);
-    string FileFullName(string s);
     std::string EncodeBase64(std::string const& decoded_string);
     std::string DecodeBase64(std::string const& encoded_string);
     std::string EncodeUrl(const std::string& src);
@@ -310,7 +388,8 @@ namespace Jtol{
     void PraseJson(const Json_Node& now, int l,wstring &out);
     wstring ReadableJson(const Json_Node&now);
     void TelnetPrint(string s);
-    vector<string>split(string s,string cut,int num=0);
+    vector<string>split(string s,const string &cut,int num=0);
+    vector<string>split(const string &s,int num=0);
     string join(vector<string>ve,string s);
     //string exec_cmd(string cmd);
     struct stream{
@@ -365,7 +444,7 @@ namespace Jtol{
             return s;
         }
         string until(string s){
-            
+            //TODO
             return s;
         }
     };
@@ -381,7 +460,7 @@ namespace Jtol{
     bool is_hex(char c);
     int hex(char c);
     string phrase_string(string s);
-    string request(string url);
     string operator "" _str(const char* s, size_t size);
+    regex operator "" _reg(const char* s, size_t size);
 }
 #endif
