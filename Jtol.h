@@ -92,6 +92,7 @@ namespace Jtol{
     };
     
     class ThreadPool{
+        // https://github.com/lzpong/threadpool
         using Task = function<void()>;
         vector<thread> pool;
         queue<Task> tasks;
