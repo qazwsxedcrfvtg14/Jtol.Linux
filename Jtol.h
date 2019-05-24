@@ -315,20 +315,20 @@ namespace Jtol{
         }
         auto inp=new __gnu_cxx::stdio_filebuf<char>(in, std::ios::in);
         auto outp=new __gnu_cxx::stdio_filebuf<char>(out, std::ios::out);
-        shared_ptr<istream> is(new istream(inp),[in,inp](istream *p){
+        unique_ptr<istream> is(new istream(inp),[in,inp](istream *p){
             delete p;
             delete inp;
             close(in);
         });
-        shared_ptr<ostream> os(new ostream(outp),[out,outp](ostream *p){
+        unique_ptr<ostream> os(new ostream(outp),[out,outp](ostream *p){
             delete p;
             delete outp;
             close(out);
         });
         return tuple(is,os);
     }
-    tuple<shared_ptr<istream>,shared_ptr<ostream>> execv_pipe(string cmd,vector<string>ve);
-    tuple<shared_ptr<istream>,shared_ptr<ostream>> sock2stream(int in,int out);
+    tuple<unique_ptr<istream,function<void(istream*)>>,unique_ptr<ostream,function<void(ostream*)>>> execv_pipe(string cmd,vector<string>ve);
+    tuple<unique_ptr<istream,function<void(istream*)>>,unique_ptr<ostream,function<void(ostream*)>>> sock2stream(int in,int out);
     string IStreamToStr(istream& is);
     template<typename... Args>
     string exec_cmd(Args&&... args){

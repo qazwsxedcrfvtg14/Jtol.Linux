@@ -1561,31 +1561,19 @@ namespace Jtol{
             result+=s+ve[i];
         return result;
     }
-    tuple<shared_ptr<istream>,shared_ptr<ostream>> sock2stream(int in,int out){
+    tuple<unique_ptr<istream,function<void(istream*)>>,unique_ptr<ostream,function<void(ostream*)>>> sock2stream(int in,int out){
         auto inp=new __gnu_cxx::stdio_filebuf<char>(in, std::ios::in);
         auto outp=new __gnu_cxx::stdio_filebuf<char>(out, std::ios::out);
         auto done=new bool(false);
         auto mut=new mutex;
-        shared_ptr<istream> is(new istream(inp),[in,inp,done,mut](istream *p){
-            delete p;
+        unique_ptr<istream,function<void(istream*)>> is(new istream(inp),[in,out,inp,outp,done,mut](istream *p){
             mut->lock();
-            if(*done){
-                delete inp;
-                close(in);
-                mut->unlock();
-                delete done;
-                delete mut;
-            }else{
-                *done=true;
-                mut->unlock();
-            }
-        });
-        shared_ptr<ostream> os(new ostream(outp),[out,outp,done,mut](ostream *p){
             delete p;
-            mut->lock();
             if(*done){
                 delete outp;
-                close(out);
+                delete inp;
+                close(in);
+                if(in!=out)close(out);
                 mut->unlock();
                 delete done;
                 delete mut;
@@ -1594,9 +1582,25 @@ namespace Jtol{
                 mut->unlock();
             }
         });
-        return tuple(is,os);
+        unique_ptr<ostream,function<void(ostream*)>> os(new ostream(outp),[in,out,inp,outp,done,mut](ostream *p){
+            mut->lock();
+            delete p;
+            if(*done){
+                delete outp;
+                delete inp;
+                close(in);
+                if(in!=out)close(out);
+                mut->unlock();
+                delete done;
+                delete mut;
+            }else{
+                *done=true;
+                mut->unlock();
+            }
+        });
+        return tuple(move(is),move(os));
     }
-    tuple<shared_ptr<istream>,shared_ptr<ostream>> execv_pipe(string cmd,vector<string>ve){
+    tuple<unique_ptr<istream,function<void(istream*)>>,unique_ptr<ostream,function<void(ostream*)>>> execv_pipe(string cmd,vector<string>ve){
         int fd_1[2],fd_2[2];
         pipe(fd_1);
         pipe(fd_2);
