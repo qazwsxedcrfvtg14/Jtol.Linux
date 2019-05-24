@@ -1,4 +1,4 @@
-//Jtol.Linux.h v2.0.2
+//Jtol.Linux.h v2.0.3
 #ifndef JTOL_H_
 #define JTOL_H_
 #include "json.hpp"
@@ -328,6 +328,7 @@ namespace Jtol{
         return tuple(is,os);
     }
     tuple<shared_ptr<istream>,shared_ptr<ostream>> execv_pipe(string cmd,vector<string>ve);
+    tuple<shared_ptr<istream>,shared_ptr<ostream>> sock2stream(int in,int out);
     string IStreamToStr(istream& is);
     template<typename... Args>
     string exec_cmd(Args&&... args){

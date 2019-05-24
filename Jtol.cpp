@@ -1,4 +1,4 @@
-//Jtol.Linux.cpp v2.0.2
+//Jtol.Linux.cpp v2.0.3
 #include<bits/stdc++.h>
 #include<ext/rope>
 #include <sys/types.h>
@@ -1561,29 +1561,41 @@ namespace Jtol{
             result+=s+ve[i];
         return result;
     }
-    mutex exec_mut;
-    /*string exec_cmd(string cmd){
-        exec_mut.lock();
-        //cout<<cmd<<endl;
-        char buffer[1005];
-        string result = "";
-        FILE* pipe = popen(cmd.c_str(), "r");
-        if (!pipe) throw std::runtime_error("popen() failed!");
-        try {
-            while (!feof(pipe)) {
-                size_t len=fread(buffer,sizeof(char),1000,pipe);
-                if (len > 0)
-                    result += string(buffer,len);
+    tuple<shared_ptr<istream>,shared_ptr<ostream>> sock2stream(int in,int out){
+        auto inp=new __gnu_cxx::stdio_filebuf<char>(in, std::ios::in);
+        auto outp=new __gnu_cxx::stdio_filebuf<char>(out, std::ios::out);
+        auto done=new bool(false);
+        auto mut=new mutex;
+        shared_ptr<istream> is(new istream(inp),[in,inp,done,mut](istream *p){
+            delete p;
+            mut->lock();
+            if(*done){
+                delete inp;
+                close(in);
+                mut->unlock();
+                delete done;
+                delete mut;
+            }else{
+                *done=true;
+                mut->unlock();
             }
-        }
-        catch(...){
-            pclose(pipe);
-            throw;
-        }
-        pclose(pipe);
-        exec_mut.unlock();
-        return result;
-    }*/
+        });
+        shared_ptr<ostream> os(new ostream(outp),[out,outp,done,mut](ostream *p){
+            delete p;
+            mut->lock();
+            if(*done){
+                delete outp;
+                close(out);
+                mut->unlock();
+                delete done;
+                delete mut;
+            }else{
+                *done=true;
+                mut->unlock();
+            }
+        });
+        return tuple(is,os);
+    }
     tuple<shared_ptr<istream>,shared_ptr<ostream>> execv_pipe(string cmd,vector<string>ve){
         int fd_1[2],fd_2[2];
         pipe(fd_1);
@@ -1609,19 +1621,7 @@ namespace Jtol{
             execvp(cmd.c_str(),args.data());
             fprintf(stderr,"exec filed!\n");
         }
-        auto inp=new __gnu_cxx::stdio_filebuf<char>(in, std::ios::in);
-        auto outp=new __gnu_cxx::stdio_filebuf<char>(out, std::ios::out);
-        shared_ptr<istream> is(new istream(inp),[in,inp](istream *p){
-            delete p;
-            delete inp;
-            close(in);
-        });
-        shared_ptr<ostream> os(new ostream(outp),[out,outp](ostream *p){
-            delete p;
-            delete outp;
-            close(out);
-        });
-        return tuple(is,os);
+        return sock2stream(in,out);
     }
     map<Net,Thread>nc_map;
     map<Net,stream>nc_stream;
