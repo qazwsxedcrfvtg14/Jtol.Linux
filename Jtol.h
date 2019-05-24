@@ -163,6 +163,7 @@ namespace Jtol{
 
     unsigned long long int GetTime();
     void Delay(Time x,Time feq=1);
+    string IpToStr(const struct sockaddr *sa);
     Net NetCreat(const string& ip,int port=23,int udp=0,int udp_bind_port=0);//mode: 1->NoWait 0->Wait
     extern map<Net,string > NetBuf;
     extern rwlock NetBuf_lock;
@@ -259,7 +260,7 @@ namespace Jtol{
             }
     };
     vector<string> SetHostIPs();
-    void SNetCreat(vector<string> HostIP,int port,int non_block_mode,function<void(Net)>func);
+    void SNetCreat(vector<string> HostIP,int port,int non_block_mode,function<void(Net,string)>func);
     string FileToStr(const string &fil);
     void StrToFile(string s,const string& fil);
     string UTCTime();

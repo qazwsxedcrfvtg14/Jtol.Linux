@@ -39,6 +39,22 @@ namespace Jtol{
             std::this_thread::sleep_for(std::chrono::milliseconds(feq));
         }
     }
+    string IpToStr(const struct sockaddr *sa){
+        constexpr int MAXADDRLEN=50;
+        char s[MAXADDRLEN];
+        switch (sa->sa_family){
+        case AF_INET:
+            inet_ntop(AF_INET,&(((struct sockaddr_in*)sa)->sin_addr),s,MAXADDRLEN);
+            break;
+        case AF_INET6:
+            inet_ntop(AF_INET6,&(((struct sockaddr_in6*)sa)->sin6_addr),s,MAXADDRLEN);
+            break;
+        default:
+            strncpy(s,"Unknown AF",MAXADDRLEN);
+            break;
+        }
+        return s;
+    }
     Net NetCreat(const string& ip,int port,int non_block_mode,int udp,int udp_bind_port){
         int sockfd;
         struct sockaddr_in servaddr;
@@ -145,7 +161,7 @@ namespace Jtol{
         return HostIP;
     }
 
-    void SNetCreat(vector<string> HostIP,int port,int non_block_mode,function<void(Net)>func){
+    void SNetCreat(vector<string> HostIP,int port,int non_block_mode,function<void(Net,string)>func){
         vector<Net> server_sockfd;
         if(HostIP.size()==0)
             HostIP.push_back("");
@@ -168,20 +184,22 @@ namespace Jtol{
                 fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
                 err=1;
             }
+            bool success=0;
             for(auto p = servinfo; !err && p != NULL; p = p->ai_next) {
                 server_sockfd.push_back(socket(p->ai_family,p->ai_socktype,p->ai_protocol));
-                if((int)server_sockfd.back() == -1) {
+                if((int)server_sockfd.back()<0&&!success) {
                     fprintf(stderr, "Socket %d Error\n",i);
                     err=1;
                 }
-                if(bind(server_sockfd.back(),p->ai_addr,p->ai_addrlen) == -1){
+                if(bind(server_sockfd.back(),p->ai_addr,p->ai_addrlen)<0&&!success){
                     fprintf(stderr, "Bind %d Error\n",i);
                     err=1;
                 }
-                if(listen(server_sockfd.back(), 128) < 0) {
+                if(listen(server_sockfd.back(), 128) < 0&&!success) {
                     fprintf(stderr, "Listen %d Error\n",i);
                     err=1;
                 }
+                success=1;
             }
             if(servinfo!=NULL)
                 freeaddrinfo(servinfo);
@@ -210,8 +228,8 @@ namespace Jtol{
                         int flags = fcntl(conn_sock, F_GETFL, 0);
                         fcntl(conn_sock, F_SETFL, flags|O_NONBLOCK);
                     }
+                    pool.commit(func,conn_sock,IpToStr(&clientaddr));
                 }
-                pool.commit(func,conn_sock);
             }
         }
         return ;
